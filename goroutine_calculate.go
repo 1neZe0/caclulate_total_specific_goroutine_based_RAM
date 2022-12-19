@@ -1,15 +1,11 @@
 package main
 
 import (
+	"crypto/rand"
 	"fmt"
-	"golang.org/x/crypto/ssh"
-	"net"
-	"os"
 	"runtime"
-	"strings"
 	"sync"
 	"syscall"
-	"time"
 )
 
 func main() {
@@ -18,58 +14,40 @@ func main() {
 	// Increment the WaitGroup counter to indicate that we have one goroutine
 	wg.Add(1)
 	// Start the goroutine
+	//data := make([]byte, 0)
 	go func() {
-
 		defer wg.Done()
-		f, err := os.OpenFile("test.txt", os.O_APPEND|os.O_WRONLY, 0644)
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		defer f.Close()
-		auth := []string{"hello:hello", "bye:bye", "salam:salam"}
-		proxy := ""
-		// Try connecting to the proxy without a username and password
-		_, err = ssh.Dial("tcp", proxy, &ssh.ClientConfig{
-			User: "",
-			Auth: []ssh.AuthMethod{ssh.Password("")},
-			HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-				return nil
-			},
-			Timeout: time.Second * 30,
-		})
-		if err == nil {
-			fmt.Printf("good ssh = " + proxy + "\n")
-			// If the connection is successful, write the proxy's address to the good_proxies file
-			_, err = f.WriteString(proxy + "\n")
-			if err != nil {
-				fmt.Printf("Error writing to good_proxies file: %s\n", err)
-			}
-			return
-		}
-		fmt.Println("1")
-		for _, a := range auth {
-			pair := strings.Split(a, ":")
-			username := pair[0]
-			password := pair[1]
+		// Get the number of gigabytes of RAM to fill
+		var gigabytes int
+		//fmt.Print("Enter the number of gigabytes to fill: ")
+		//_, err := fmt.Scan(&gigabytes)
+		//if err != nil {
+		//	panic(err)
+		//}
+		gigabytes = 1
 
-			_, err := ssh.Dial("tcp", proxy, &ssh.ClientConfig{
-				User: username,
-				Auth: []ssh.AuthMethod{ssh.Password(password)},
-				HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-					return nil
-				},
-				Timeout: time.Second * 30,
-			})
-			if err == nil {
-				fmt.Printf("good ssh = " + proxy + ":" + username + ":" + password + "\n")
-				// If the connection is successful, write the proxy's address to the good_proxies file
-				_, _ = f.WriteString(proxy + ":" + username + ":" + password + "\n")
-				return
+		// Calculate the number of bytes to fill
+		bytes := int64(gigabytes) * int64(1<<30)
+
+		// Allocate the bytes in a loop
+		for i := int64(0); i < bytes; i += int64(1 << 20) {
+			// Allocate a slice of 1MB
+			b := make([]byte, 1<<20)
+			// Fill the slice with random data
+			_, err := rand.Read(b)
+			if err != nil {
+				panic(err)
 			}
-			time.Sleep(1)
+			// Keep the slice in memory by assigning it to a global variable
+			// Note: This is not a good way to allocate large amounts of memory, as it will not be garbage collected.
+			// It is only being used here for testing purposes.
+			_ = b
 		}
-		fmt.Println("2")
+
+		// Print the current memory usage
+		var mem runtime.MemStats
+		runtime.ReadMemStats(&mem)
+		fmt.Printf("Total memory usage: %d MB\n", mem.TotalAlloc/1024/1024)
 	}()
 
 	// Wait for the goroutine to finish
@@ -91,6 +69,6 @@ func main() {
 	// based on the total amount of memory and the memory usage of the goroutine
 	fmt.Printf("Total memory: %d bytes\n", sysinfo.Totalram)
 	maxGoroutines := sysinfo.Totalram / goroutineMemoryUsage
-
+	fmt.Printf("Memory usage of goroutine: %d bytes\n", memStats.Sys-memStats.HeapReleased)
 	fmt.Printf("Maximum number of goroutines: %d\n", maxGoroutines)
 }
